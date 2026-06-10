@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, MessageSquare, CheckCircle, Clock, Save, Triangle, Square, Circle, LogOut, User, Lock, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Plus, MessageSquare, CheckCircle, Clock, Save, Triangle, Square, Circle, LogOut, User, Lock, ArrowRight, ArrowLeft, Search, Trash2 } from 'lucide-react';
 import { Debate, Statement } from './types';
 import { auth, db } from './firebase';
 import { 
@@ -27,24 +27,13 @@ export default function App() {
   const [debates, setDebates] = useState<Debate[]>([]);
   const [statements, setStatements] = useState<Record<string, Statement[]>>({});
   const [activeDebateId, setActiveDebateId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [loginPassword, setLoginPassword] = useState('');
   const [loginName, setLoginName] = useState(''); 
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState('');
-
-  const [friends, setFriends] = useState<string[]>([]);
-
-  useEffect(() => {
-    const savedFriends = localStorage.getItem('friends');
-    if (savedFriends) {
-      const parsed = JSON.parse(savedFriends);
-      const filtered = parsed.filter((f: string) => !['Ami 1', 'Ami 2', 'Ami 3'].includes(f));
-      setFriends(filtered);
-      localStorage.setItem('friends', JSON.stringify(filtered));
-    }
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -144,6 +133,21 @@ export default function App() {
     }
   };
 
+  const deleteDebate = async (debateId: string) => {
+    if (!authUser) return;
+    const isConfirmed = window.confirm("Es-tu sûr(e) de vouloir supprimer définitivement ce débat ?");
+    if (!isConfirmed) return;
+
+    try {
+      if (activeDebateId === debateId) {
+        setActiveDebateId(null);
+      }
+      await deleteDoc(doc(db, 'debates', debateId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `debates/${debateId}`);
+    }
+  };
+
   const addStatement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!activeDebateId || !authUser) return;
@@ -203,12 +207,6 @@ export default function App() {
         const userCred = await createUserWithEmailAndPassword(auth, emailToUse, loginPassword);
         await updateProfile(userCred.user, { displayName: loginName.trim() });
         setAuthUser({ ...userCred.user, displayName: loginName.trim() } as FirebaseUser);
-        
-        if (!friends.includes(loginName.trim())) {
-          const newFriends = [loginName.trim(), ...friends];
-          setFriends(newFriends);
-          localStorage.setItem('friends', JSON.stringify(newFriends));
-        }
       } else {
         await signInWithEmailAndPassword(auth, emailToUse, loginPassword);
       }
@@ -350,7 +348,7 @@ export default function App() {
           </div>
           
           {/* NEW DEBATE BUTTON */}
-          <div className="p-4 bg-neutral-100">
+          <div className="p-4 bg-neutral-100 space-y-3">
             <button 
               onClick={createDebate}
               className="w-full flex items-center justify-center gap-2 bg-black hover:bg-neutral-800 active:translate-y-1 active:translate-x-1 active:shadow-none text-white px-4 py-3 border-4 border-black shadow-[4px_4px_0_0_rgba(251,113,133,1)] hover:shadow-none font-bold uppercase tracking-wider transition-all rounded-none"
@@ -358,44 +356,72 @@ export default function App() {
               <Plus className="w-6 h-6" strokeWidth={3} />
               NOUVEAU DÉBAT
             </button>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" strokeWidth={3} />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="RECHERCHER..."
+                className="w-full bg-white border-2 border-black pl-10 pr-3 py-2 font-bold uppercase text-sm shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:outline-none focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] transition-all placeholder:text-neutral-400"
+              />
+            </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
-          {debates.length === 0 ? (
-            <div className="text-center font-bold text-black border-4 border-dashed border-black p-6 mt-4">
-              AUCUN DÉBAT.<br/>LANCEZ LES HOSTILITÉS !
+          {debates.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+            <div className="text-center font-bold text-black border-4 border-dashed border-black p-6 mt-4 uppercase">
+              {searchQuery ? "AUCUN RÉSULTAT POUR CETTE RECHERCHE." : "AUCUN DÉBAT.\nLANCEZ LES HOSTILITÉS !"}
             </div>
           ) : (
-            debates.map(debate => (
-              <button
+            debates.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase())).map(debate => (
+              <div
                 key={debate.id}
-                onClick={() => setActiveDebateId(debate.id)}
-                className={`w-full text-left p-4 border-4 border-black transition-all ${
+                className={`w-full text-left p-4 border-4 border-black transition-all relative block ${
                   activeDebateId === debate.id 
                     ? 'bg-rose-400 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-1 -translate-x-1' 
-                    : 'bg-white hover:bg-neutral-100 shadow-[2px_2px_0_0_rgba(0,0,0,1)]'
+                    : 'bg-white shadow-[2px_2px_0_0_rgba(0,0,0,1)] hover:bg-neutral-50'
                 }`}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <span className={`text-xs px-2 py-1 border-2 border-black font-bold uppercase ${
-                    debate.status === 'Ouvert' ? 'bg-emerald-400' : 'bg-neutral-300'
-                  }`}>
-                    {debate.status}
-                  </span>
-                  <span className="text-xs font-bold flex items-center gap-1 border-b-2 border-black pb-0.5">
-                    <Clock className="w-3 h-3" strokeWidth={3} />
-                    {new Date(debate.createdAt).toLocaleDateString()}
-                  </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveDebateId(debate.id)}
+                  className="absolute inset-0 w-full h-full text-left bg-transparent z-10 cursor-pointer"
+                  aria-label={`Ouvrir le débat: ${debate.title}`}
+                ></button>
+                <div className="relative z-20 pointer-events-none">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className={`text-xs px-2 py-1 border-2 border-black font-bold uppercase ${
+                      debate.status === 'Ouvert' ? 'bg-emerald-400' : 'bg-neutral-300'
+                    }`}>
+                      {debate.status}
+                    </span>
+                    <span className="text-xs font-bold flex items-center gap-1 border-b-2 border-black pb-0.5">
+                      <Clock className="w-3 h-3" strokeWidth={3} />
+                      {new Date(debate.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 className="font-black font-display text-lg uppercase truncate tracking-tight pr-8">
+                    {debate.title}
+                  </h3>
+                  <div className="flex justify-between items-center border-t-2 border-black pt-2 mt-2">
+                    <p className="text-sm font-bold flex items-center gap-1">
+                      <MessageSquare className="w-4 h-4 fill-black" />
+                      {(statements[debate.id] || []).length} CITATION(S)
+                    </p>
+                    {debate.ownerId === authUser.uid && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteDebate(debate.id); }}
+                        className="pointer-events-auto p-1.5 hover:bg-rose-500 hover:text-white border-2 border-transparent hover:border-black transition-all"
+                        title="Supprimer ce débat"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <h3 className="font-black font-display text-lg uppercase truncate tracking-tight">
-                  {debate.title}
-                </h3>
-                <p className="text-sm font-bold mt-2 flex items-center gap-1 border-t-2 border-black pt-2">
-                  <MessageSquare className="w-4 h-4 fill-black" />
-                  {(statements[debate.id] || []).length} CITATION(S)
-                </p>
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -549,15 +575,19 @@ export default function App() {
             {activeDebate.status === 'Ouvert' && (
               <div className="bg-white border-t-4 border-black p-4 sm:p-6 pb-6 sm:pb-6 z-20 shadow-[0_-4px_0_0_rgba(0,0,0,1)] shrink-0">
                 <form onSubmit={addStatement} className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-4">
-                  <select 
+                  <input 
+                    type="text"
                     name="author"
-                    defaultValue={authUser.displayName || 'Moi'} 
-                    className="bg-neutral-100 border-2 border-black text-black font-bold uppercase rounded-none focus:outline-none focus:ring-0 p-3 min-w-[140px] shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] transition-all text-sm md:text-base"
-                  >
-                    {Array.from(new Set([authUser.displayName || 'Moi', ...friends, ...Object.values(statements).flat().map(s => s.authorName)])).map(f => (
-                      <option key={f} value={f}>{f}</option>
+                    list="author-suggestions"
+                    defaultValue={authUser.displayName || 'Moi'}
+                    placeholder="QUI A DIT ÇA ?"
+                    className="bg-neutral-100 border-2 border-black text-black font-bold uppercase rounded-none focus:outline-none focus:ring-0 p-3 min-w-[140px] shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] transition-all text-sm md:text-base placeholder:text-neutral-400"
+                  />
+                  <datalist id="author-suggestions">
+                    {Array.from(new Set([authUser.displayName || 'Moi', ...Object.values(statements).flat().map(s => s.submitterName).filter(Boolean)])).map(f => (
+                      <option key={f as string} value={f as string} />
                     ))}
-                  </select>
+                  </datalist>
                   
                   <input
                     type="text"
