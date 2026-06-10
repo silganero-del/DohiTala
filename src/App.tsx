@@ -271,7 +271,7 @@ export default function App() {
               <input 
                 type="text" 
                 value={loginName}
-                onChange={(e) => setLoginName(e.target.value)}
+                onChange={(e) => setLoginName(e.target.value.toUpperCase())}
                 className="w-full bg-neutral-100 border-4 border-black p-3 font-bold uppercase rounded-none focus:outline-none focus:ring-0 shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] transition-all placeholder:text-neutral-300"
                 placeholder="EX: THOMAS"
                 required
