@@ -4,6 +4,8 @@ export interface Statement {
   authorName: string;
   text: string;
   timestamp: number;
+  submitterName?: string;
+  revocations?: string[];
 }
 
 export interface Debate {

@@ -17,7 +17,9 @@ import {
   orderBy, 
   onSnapshot, 
   setDoc,
-  updateDoc
+  updateDoc,
+  deleteDoc,
+  arrayUnion
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/firestore-error';
 
@@ -27,7 +29,6 @@ export default function App() {
   const [activeDebateId, setActiveDebateId] = useState<string | null>(null);
   
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
-  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginName, setLoginName] = useState(''); 
   const [isSignUp, setIsSignUp] = useState(false);
@@ -93,7 +94,9 @@ export default function App() {
           authorId: data.authorId,
           authorName: data.authorName,
           text: data.text,
-          timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : data.timestamp
+          timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : data.timestamp,
+          submitterName: data.submitterName,
+          revocations: data.revocations || []
         });
       });
       setStatements(prev => ({ ...prev, [activeDebateId]: fetched }));
@@ -158,7 +161,9 @@ export default function App() {
         authorId: authUser.uid,
         authorName,
         text,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        submitterName: authUser.displayName,
+        revocations: []
       });
       form.reset();
     } catch (error) {
@@ -166,18 +171,38 @@ export default function App() {
     }
   };
 
+  const handleRevoke = async (statement: Statement) => {
+    if (!authUser || !activeDebateId) return;
+    const currentRevocations = statement.revocations || [];
+    if (currentRevocations.includes(authUser.uid)) return;
+    
+    const newRevocations = [...currentRevocations, authUser.uid];
+    const statementRef = doc(db, `debates/${activeDebateId}/statements`, statement.id);
+    
+    try {
+      if (newRevocations.length >= 2) {
+        await deleteDoc(statementRef);
+      } else {
+        await updateDoc(statementRef, { revocations: arrayUnion(authUser.uid) });
+      }
+    } catch(err) {
+      handleFirestoreError(err, OperationType.UPDATE, `debates/${activeDebateId}/statements`);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    if (!loginName.trim()) {
+      setAuthError('Veuillez entrer un prénom.');
+      return;
+    }
+    const emailToUse = `${loginName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@dohitala.app`;
     try {
       if (isSignUp) {
-        if (!loginName.trim()) {
-          setAuthError('Veuillez entrer un prénom.');
-          return;
-        }
-        const userCred = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
-        await updateProfile(userCred.user, { displayName: loginName });
-        setAuthUser({ ...userCred.user, displayName: loginName } as FirebaseUser);
+        const userCred = await createUserWithEmailAndPassword(auth, emailToUse, loginPassword);
+        await updateProfile(userCred.user, { displayName: loginName.trim() });
+        setAuthUser({ ...userCred.user, displayName: loginName.trim() } as FirebaseUser);
         
         if (!friends.includes(loginName.trim())) {
           const newFriends = [loginName.trim(), ...friends];
@@ -185,16 +210,21 @@ export default function App() {
           localStorage.setItem('friends', JSON.stringify(newFriends));
         }
       } else {
-        await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+        await signInWithEmailAndPassword(auth, emailToUse, loginPassword);
       }
     } catch (error: any) {
-      setAuthError(error.message || 'Une erreur est survenue.');
+      if (error.code === 'auth/invalid-credential') {
+        setAuthError('Prénom ou mot de passe incorrect.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setAuthError('Ce prénom est déjà pris. Veuillez vous connecter ou choisir un autre prénom.');
+      } else {
+        setAuthError(error.message || 'Une erreur est survenue.');
+      }
     }
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    setLoginEmail('');
     setLoginPassword('');
     setLoginName('');
   };
@@ -238,31 +268,18 @@ export default function App() {
               </div>
             )}
             
-            {isSignUp && (
-              <div className="space-y-2">
-                <label className="font-bold uppercase text-sm flex items-center gap-2"><User className="w-4 h-4"/> Ton Prénom</label>
-                <input 
-                  type="text" 
-                  value={loginName}
-                  onChange={(e) => setLoginName(e.target.value)}
-                  className="w-full bg-neutral-100 border-4 border-black p-3 font-bold uppercase rounded-none focus:outline-none focus:ring-0 shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] transition-all placeholder:text-neutral-300"
-                  placeholder="EX: THOMAS"
-                  required={isSignUp}
-                />
-              </div>
-            )}
-            
             <div className="space-y-2">
-              <label className="font-bold uppercase text-sm flex items-center gap-2"><User className="w-4 h-4"/> Email</label>
+              <label className="font-bold uppercase text-sm flex items-center gap-2"><User className="w-4 h-4"/> Ton Prénom</label>
               <input 
-                type="email" 
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-neutral-100 border-4 border-black p-3 font-bold rounded-none focus:outline-none focus:ring-0 shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] transition-all placeholder:text-neutral-300"
-                placeholder="TON EMAIL"
+                type="text" 
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                className="w-full bg-neutral-100 border-4 border-black p-3 font-bold uppercase rounded-none focus:outline-none focus:ring-0 shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] transition-all placeholder:text-neutral-300"
+                placeholder="EX: THOMAS"
                 required
               />
             </div>
+            
             <div className="space-y-2">
               <label className="font-bold uppercase text-sm flex items-center gap-2"><Lock className="w-4 h-4"/> Mot de passe</label>
               <input 
@@ -470,14 +487,34 @@ export default function App() {
                           }`}></div>
 
                           <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-black">
-                            <span className="font-bold font-display text-sm md:text-base uppercase bg-yellow-200 px-2 border-2 border-black">{statement.authorName}</span>
-                            <span className="text-xs font-bold border-l-2 border-black pl-2 text-neutral-500">
+                            <div className="flex flex-col md:flex-row md:items-center gap-2">
+                              <span className="font-bold font-display text-sm md:text-base uppercase bg-yellow-200 px-2 border-2 border-black truncate max-w-[120px] md:max-w-none">{statement.authorName}</span>
+                              {statement.submitterName && statement.submitterName !== statement.authorName && (
+                                <span className="text-[10px] font-bold uppercase text-neutral-500">
+                                  (Cité par {statement.submitterName})
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs font-bold border-l-2 border-black pl-2 text-neutral-500 whitespace-nowrap">
                               {new Date(statement.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className="text-neutral-900 leading-relaxed font-sans text-base break-words">
+                          <p className="text-neutral-900 leading-relaxed font-sans text-base break-words mb-3">
                             "{statement.text}"
                           </p>
+                          <div className="flex justify-end pt-2 border-t-2 border-dashed border-neutral-300">
+                            <button
+                              onClick={() => handleRevoke(statement)}
+                              disabled={statement.revocations?.includes(authUser?.uid || '')}
+                              className={`text-[10px] font-bold uppercase px-2 py-1 border-2 border-black transition-all ${
+                                statement.revocations?.includes(authUser?.uid || '') 
+                                  ? 'bg-neutral-200 text-neutral-400 border-neutral-300 cursor-not-allowed'
+                                  : 'bg-white hover:bg-rose-100 text-rose-500 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none'
+                              }`}
+                            >
+                              {statement.revocations?.includes(authUser?.uid || '') ? 'Révoqué' : 'Révoquer'} ({statement.revocations?.length || 0}/2)
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
