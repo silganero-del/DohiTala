@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Debate": {
+      "title": "Debate",
+      "description": "A debate thread between friends",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["Ouvert", "Résolu"] },
+        "conclusion": { "type": "string", "maxLength": 500 },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["title", "createdAt", "status", "ownerId"]
+    },
+    "Statement": {
+      "title": "Statement",
+      "description": "An argument within a debate",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string", "maxLength": 50 },
+        "text": { "type": "string", "maxLength": 1000 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["authorId", "authorName", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/debates/{debateId}": {
+      "schema": "Debate",
+      "description": "Store all debates"
+    },
+    "/debates/{debateId}/statements/{statementId}": {
+      "schema": "Statement",
+      "description": "Store arguments for the debate"
+    }
+  }
+}

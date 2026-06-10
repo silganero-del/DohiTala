@@ -1,0 +1,6 @@
+{
+  "name": "DohiTala",
+  "description": "Une application au design neo-brutaliste et géométrique pour consigner les débats entre amis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
