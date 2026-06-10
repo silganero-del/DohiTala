@@ -33,12 +33,15 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  const [friends, setFriends] = useState<string[]>(['Ami 1', 'Ami 2', 'Ami 3']);
+  const [friends, setFriends] = useState<string[]>([]);
 
   useEffect(() => {
     const savedFriends = localStorage.getItem('friends');
     if (savedFriends) {
-      setFriends(JSON.parse(savedFriends));
+      const parsed = JSON.parse(savedFriends);
+      const filtered = parsed.filter((f: string) => !['Ami 1', 'Ami 2', 'Ami 3'].includes(f));
+      setFriends(filtered);
+      localStorage.setItem('friends', JSON.stringify(filtered));
     }
   }, []);
 
@@ -438,7 +441,7 @@ export default function App() {
               <div className="max-w-4xl mx-auto space-y-10">
                 
                 {/* Statements List */}
-                <div className="space-y-8 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-1.5 md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[4px] before:bg-black">
+                <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-[1px] md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[2px] before:bg-black">
                   {activeStatements.length === 0 && (
                     <div className="text-center py-12 font-bold uppercase border-4 border-black border-dashed bg-white max-w-lg mx-auto relative z-10">
                       LA SCÈNE EST VIDE. AJOUTEZ UNE CITATION CI-DESSOUS.
@@ -456,23 +459,23 @@ export default function App() {
                     return (
                       <div key={statement.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group z-10">
                         {/* Center Icon on timeline */}
-                        <div className="flex items-center justify-center w-12 h-12 border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] shrink-0 z-10 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 rounded-none">
+                        <div className="flex items-center justify-center w-10 h-10 border-2 border-black bg-white shadow-[2px_2px_0_0_rgba(0,0,0,1)] shrink-0 z-10 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 rounded-none">
                           {Shape}
                         </div>
                         
-                        <div className="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] p-5 border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] relative transition-transform hover:-translate-y-1">
+                        <div className="w-[calc(100%-3.5rem)] md:w-[calc(50%-4rem)] p-4 md:p-6 border-2 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] relative transition-transform hover:-translate-y-1">
                           {/* Triangle pointer connecting box to timeline line */}
-                          <div className={`hidden md:block absolute top-1/2 -mt-3 w-4 h-4 bg-white border-t-4 border-r-4 border-black transform rotate-45 ${
-                            isEven ? 'left-full -ml-[10px]' : 'right-full -mr-[10px] scale-x-[-1]'
+                          <div className={`hidden md:block absolute top-1/2 -mt-2 w-3 h-3 bg-white border-t-2 border-r-2 border-black transform rotate-45 ${
+                            isEven ? 'left-full -ml-[7px]' : 'right-full -mr-[7px] scale-x-[-1]'
                           }`}></div>
 
-                          <div className="flex justify-between items-center mb-3 pb-2 border-b-4 border-black">
-                            <span className="font-black font-display text-lg uppercase bg-yellow-200 px-2 border-2 border-black">{statement.authorName}</span>
-                            <span className="text-sm font-bold border-l-4 border-black pl-2">
+                          <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-black">
+                            <span className="font-bold font-display text-sm md:text-base uppercase bg-yellow-200 px-2 border-2 border-black">{statement.authorName}</span>
+                            <span className="text-xs font-bold border-l-2 border-black pl-2 text-neutral-500">
                               {new Date(statement.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className="text-black font-medium leading-relaxed font-sans text-lg break-words">
+                          <p className="text-neutral-900 leading-relaxed font-sans text-base break-words">
                             "{statement.text}"
                           </p>
                         </div>
@@ -511,10 +514,10 @@ export default function App() {
                 <form onSubmit={addStatement} className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-4">
                   <select 
                     name="author"
-                    defaultValue={authUser.displayName || friends[0]} 
-                    className="bg-neutral-100 border-4 border-black text-black font-bold uppercase rounded-none focus:outline-none focus:ring-0 p-4 min-w-[160px] shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] transition-all"
+                    defaultValue={authUser.displayName || 'Moi'} 
+                    className="bg-neutral-100 border-2 border-black text-black font-bold uppercase rounded-none focus:outline-none focus:ring-0 p-3 min-w-[140px] shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] transition-all text-sm md:text-base"
                   >
-                    {Array.from(new Set([authUser.displayName || 'Moi', ...friends])).map(f => (
+                    {Array.from(new Set([authUser.displayName || 'Moi', ...friends, ...Object.values(statements).flat().map(s => s.authorName)])).map(f => (
                       <option key={f} value={f}>{f}</option>
                     ))}
                   </select>
@@ -524,12 +527,12 @@ export default function App() {
                     name="text"
                     placeholder="QU'EST-CE QUI A ÉTÉ DIT EXACTEMENT ?..."
                     autoComplete="off"
-                    className="flex-1 bg-neutral-100 border-4 border-black text-black font-bold rounded-none focus:outline-none focus:ring-0 px-4 py-4 shadow-[4px_4px_0_0_rgba(0,0,0,1)] focus:shadow-[6px_6px_0_0_rgba(0,0,0,1)] placeholder:text-neutral-400 transition-all"
+                    className="flex-1 bg-neutral-100 border-2 border-black text-black font-medium rounded-none focus:outline-none focus:ring-0 px-4 py-3 shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] placeholder:text-neutral-400 transition-all"
                   />
                   
                   <button 
                     type="submit"
-                    className="bg-black hover:bg-neutral-800 text-white border-4 border-black px-8 py-4 font-black font-display uppercase tracking-widest transition-all shadow-[4px_4px_0_0_rgba(0,0,0,1)] shadow-rose-400 active:translate-x-1 active:translate-y-1 active:shadow-none whitespace-nowrap"
+                    className="bg-black hover:bg-neutral-800 text-white border-2 border-black px-6 py-3 font-bold font-display uppercase tracking-wider transition-all shadow-[2px_2px_0_0_rgba(0,0,0,1)] shadow-rose-400 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none whitespace-nowrap"
                   >
                     AJOUTER
                   </button>

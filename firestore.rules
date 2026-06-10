@@ -5,67 +5,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    function isSignedIn() { return request.auth != null; }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-
-    function isValidDebate(data) {
-      return data.keys().hasAll(['title', 'createdAt', 'status', 'ownerId']) &&
-             data.keys().size() in [4, 5] &&
-             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
-             data.createdAt is timestamp &&
-             data.status is string && data.status in ['Ouvert', 'Résolu'] &&
-             data.ownerId == request.auth.uid &&
-             (!('conclusion' in data.keys()) || (data.conclusion is string && data.conclusion.size() <= 500));
-    }
-
     match /debates/{debateId} {
-      // Allow any logged in user to read debates
-      allow read: if isSignedIn() && isValidId(debateId);
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+                    request.resource.data.keys().hasAll(['title', 'createdAt', 'status', 'ownerId']) &&
+                    request.resource.data.ownerId == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
       
-      // Allow any logged in user to create a debate
-      allow create: if isSignedIn() && 
-                    isValidId(debateId) &&
-                    isValidDebate(incoming()) &&
-                    incoming().createdAt == request.time;
-      
-      // Allow any logged in user to update any debate (they are friends sharing an app)
-      allow update: if isSignedIn() && 
-                    isValidId(debateId) &&
-                    isValidDebate(incoming()) &&
-                    incoming().ownerId == existing().ownerId &&
-                    (
-                      // Can update status and conclusion
-                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'conclusion'])
-                      ||
-                      // Can update title if owner? Let's just say friend app allows anyone to update status/conclusion.
-                      incoming().diff(existing()).affectedKeys().hasOnly(['title'])
-                      ||
-                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'status', 'conclusion'])
-                    );
-    }
-
-    function isValidStatement(data) {
-      return data.keys().hasAll(['authorId', 'authorName', 'text', 'timestamp']) &&
-             data.keys().size() == 4 &&
-             data.authorId == request.auth.uid &&
-             data.authorName is string && data.authorName.size() <= 50 &&
-             data.text is string && data.text.size() > 0 && data.text.size() <= 1000 &&
-             data.timestamp is timestamp;
-    }
-
-    match /debates/{debateId}/statements/{statementId} {
-      // Anyone logged in can read statements
-      allow read: if isSignedIn() && isValidId(debateId) && isValidId(statementId);
-      
-      // Anyone logged in can create a statement, if the debate exists
-      allow create: if isSignedIn() && 
-                    isValidId(debateId) && isValidId(statementId) &&
-                    isValidStatement(incoming()) &&
-                    incoming().timestamp == request.time &&
-                    exists(/databases/$(database)/documents/debates/$(debateId));
-                    /* Note: NOT checking if status == 'Ouvert' here because we don't want to get() debate twice just to check status for every message, unless necessary. To prevent writes when resolved, we'd need a get(). Let's enforce in code. */
+      match /statements/{statementId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && 
+                      request.resource.data.keys().hasAll(['authorId', 'authorName', 'text', 'timestamp']) &&
+                      request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if request.auth != null;
+      }
     }
   }
 }
+
