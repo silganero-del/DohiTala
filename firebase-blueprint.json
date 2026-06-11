@@ -9,7 +9,8 @@
         "createdAt": { "type": "number" },
         "status": { "type": "string", "enum": ["Ouvert", "Résolu"] },
         "conclusion": { "type": "string", "maxLength": 500 },
-        "ownerId": { "type": "string" }
+        "ownerId": { "type": "string" },
+        "deleteVotes": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["title", "createdAt", "status", "ownerId"]
     },
@@ -21,7 +22,9 @@
         "authorId": { "type": "string" },
         "authorName": { "type": "string", "maxLength": 50 },
         "text": { "type": "string", "maxLength": 1000 },
-        "timestamp": { "type": "number" }
+        "timestamp": { "type": "number" },
+        "submitterName": { "type": "string", "maxLength": 50 },
+        "revocations": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["authorId", "authorName", "text", "timestamp"]
     }

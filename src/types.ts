@@ -15,4 +15,5 @@ export interface Debate {
   status: "Ouvert" | "Résolu";
   conclusion: string;
   ownerId: string;
+  deleteVotes?: string[];
 }

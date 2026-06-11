@@ -56,7 +56,8 @@ export default function App() {
           createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt,
           status: data.status,
           conclusion: data.conclusion || '',
-          ownerId: data.ownerId
+          ownerId: data.ownerId,
+          deleteVotes: data.deleteVotes || []
         });
       });
       setDebates(fetched);
@@ -133,18 +134,32 @@ export default function App() {
     }
   };
 
-  const deleteDebate = async (debateId: string) => {
+  const deleteDebate = async (debate: Debate) => {
     if (!authUser) return;
-    const isConfirmed = window.confirm("Es-tu sûr(e) de vouloir supprimer définitivement ce débat ?");
+    const currentVotes = debate.deleteVotes || [];
+    if (currentVotes.includes(authUser.uid)) return;
+
+    const isConfirmed = window.confirm(
+      currentVotes.length >= 2 
+        ? "Tu es le 3ème vote ! Es-tu sûr(e) de vouloir supprimer définitivement ce débat ?" 
+        : `Voter pour la suppression de ce débat ? (${currentVotes.length + 1}/3 votes requis)`
+    );
     if (!isConfirmed) return;
 
+    const newVotes = [...currentVotes, authUser.uid];
+    const debateRef = doc(db, 'debates', debate.id);
+
     try {
-      if (activeDebateId === debateId) {
-        setActiveDebateId(null);
+      if (newVotes.length >= 3) {
+        if (activeDebateId === debate.id) {
+          setActiveDebateId(null);
+        }
+        await deleteDoc(debateRef);
+      } else {
+        await updateDoc(debateRef, { deleteVotes: arrayUnion(authUser.uid) });
       }
-      await deleteDoc(doc(db, 'debates', debateId));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `debates/${debateId}`);
+      handleFirestoreError(error, OperationType.DELETE, `debates/${debate.id}`);
     }
   };
 
@@ -410,13 +425,25 @@ export default function App() {
                       <MessageSquare className="w-4 h-4 fill-black" />
                       {(statements[debate.id] || []).length} CITATION(S)
                     </p>
-                    {debate.ownerId === authUser.uid && (
+                    {authUser && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); deleteDebate(debate.id); }}
-                        className="pointer-events-auto p-1.5 hover:bg-rose-500 hover:text-white border-2 border-transparent hover:border-black transition-all"
-                        title="Supprimer ce débat"
+                        onClick={(e) => { e.stopPropagation(); deleteDebate(debate); }}
+                        disabled={debate.deleteVotes?.includes(authUser.uid)}
+                        className={`pointer-events-auto p-1.5 border-2 transition-all flex items-center gap-1 shrink-0 ${
+                          debate.deleteVotes?.includes(authUser.uid)
+                            ? 'bg-neutral-100 text-neutral-400 border-neutral-300 cursor-not-allowed'
+                            : 'bg-white hover:bg-rose-500 hover:text-white border-black shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none'
+                        }`}
+                        title={
+                          debate.deleteVotes?.includes(authUser.uid)
+                            ? `Vous avez voté pour supprimer (${debate.deleteVotes?.length || 0}/3)`
+                            : `Voter pour supprimer (${debate.deleteVotes?.length || 0}/3)`
+                        }
                       >
                         <Trash2 className="w-4 h-4" />
+                        <span className="text-xs font-bold leading-none">
+                          {debate.deleteVotes?.length || 0}/3
+                        </span>
                       </button>
                     )}
                   </div>
@@ -584,7 +611,7 @@ export default function App() {
                     className="bg-neutral-100 border-2 border-black text-black font-bold uppercase rounded-none focus:outline-none focus:ring-0 p-3 min-w-[140px] shadow-[2px_2px_0_0_rgba(0,0,0,1)] focus:shadow-[4px_4px_0_0_rgba(0,0,0,1)] transition-all text-sm md:text-base placeholder:text-neutral-400"
                   />
                   <datalist id="author-suggestions">
-                    {Array.from(new Set([authUser.displayName || 'Moi', ...Object.values(statements).flat().map(s => s.submitterName).filter(Boolean)])).map(f => (
+                    {Array.from(new Set([authUser.displayName || 'Moi', ...(Object.values(statements).flat() as Statement[]).map(s => s.submitterName).filter(Boolean)])).map(f => (
                       <option key={f as string} value={f as string} />
                     ))}
                   </datalist>
